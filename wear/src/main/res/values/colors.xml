@@ -2,7 +2,8 @@
 <resources>
     <color name="background">#000000</color>
     <color name="background2">#000088</color>
-    <color name="digital_text">#ffffff</color>
+    <color name="digital_text">#FFFFFF</color>
+    <color name="graydigital_text">#AAFFFFFF</color>
 
     <color name="sunshine_background">#1D95F0</color>
 </resources>
