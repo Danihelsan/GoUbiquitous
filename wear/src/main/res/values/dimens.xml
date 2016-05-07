@@ -2,7 +2,13 @@
 <resources>
     <dimen name="digital_text_size">40dp</dimen>
     <dimen name="digital_text_size_round">45dp</dimen>
-    <dimen name="digital_x_offset">15dp</dimen>
-    <dimen name="digital_x_offset_round">25dp</dimen>
-    <dimen name="digital_y_offset">90dp</dimen>
+    <dimen name="digital_text_size_seconds">20dp</dimen>
+    <dimen name="digital_text_size_seconds_round">22dp</dimen>
+    <dimen name="digital_x_offset">45dp</dimen>
+    <dimen name="digital_x_offset_round">50dp</dimen>
+    <dimen name="digital_x_seconds_offset">10dp</dimen>
+    <dimen name="digital_x_seconds_offset_round">162dp</dimen>
+    <dimen name="digital_y_offset">80dp</dimen>
+    <dimen name="digital_y_seconds_offset">80dp</dimen>
+
 </resources>

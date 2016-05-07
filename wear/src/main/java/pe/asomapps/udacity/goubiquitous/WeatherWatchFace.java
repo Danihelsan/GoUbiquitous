@@ -26,6 +26,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -87,7 +88,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
-        Paint mTextPaint;
+        Paint mTextPaint,mTextPaintSeconds;
         boolean mAmbient;
         Time mTime;
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
@@ -97,10 +98,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mTime.setToNow();
             }
         };
-        int mTapCount;
 
-        float mXOffset;
-        float mYOffset;
+        float mXOffset,mXOffsetSeconds;
+        float mYOffset,mYOffsetSeconds;
 
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
@@ -120,12 +120,19 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                     .build());
             Resources resources = WeatherWatchFace.this.getResources();
             mYOffset = resources.getDimension(R.dimen.digital_y_offset);
+            mYOffsetSeconds = resources.getDimension(R.dimen.digital_y_seconds_offset);
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.background));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background,getTheme()));
+            } else {
+                mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background));
+            }
 
             mTextPaint = new Paint();
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mTextPaintSeconds = new Paint();
+            mTextPaintSeconds = createTextPaint(resources.getColor(R.color.digital_text));
 
             mTime = new Time();
         }
@@ -189,10 +196,16 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             boolean isRound = insets.isRound();
             mXOffset = resources.getDimension(isRound
                     ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
+            mXOffsetSeconds = resources.getDimension(isRound
+                    ? R.dimen.digital_x_seconds_offset_round : R.dimen.digital_x_seconds_offset);
             float textSize = resources.getDimension(isRound
                     ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
-
             mTextPaint.setTextSize(textSize);
+
+            float textSizeSeconds = resources.getDimension(isRound
+                    ? R.dimen.digital_text_size_seconds_round : R.dimen.digital_text_size_seconds);
+
+            mTextPaintSeconds.setTextSize(textSizeSeconds);
         }
 
         @Override
@@ -223,45 +236,22 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             updateTimer();
         }
 
-        /**
-         * Captures tap event (and tap type) and toggles the background color if the user finishes
-         * a tap.
-         */
-        @Override
-        public void onTapCommand(int tapType, int x, int y, long eventTime) {
-            Resources resources = WeatherWatchFace.this.getResources();
-            switch (tapType) {
-                case TAP_TYPE_TOUCH:
-                    // The user has started touching the screen.
-                    break;
-                case TAP_TYPE_TOUCH_CANCEL:
-                    // The user has started a different gesture or otherwise cancelled the tap.
-                    break;
-                case TAP_TYPE_TAP:
-                    // The user has completed the tap gesture.
-                    mTapCount++;
-                    mBackgroundPaint.setColor(resources.getColor(mTapCount % 2 == 0 ?
-                            R.color.background : R.color.background2));
-                    break;
-            }
-            invalidate();
-        }
-
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            // Draw the background.
             if (isInAmbientMode()) {
                 canvas.drawColor(Color.BLACK);
             } else {
                 canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             }
-
-            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             mTime.setToNow();
-            String text = mAmbient
-                    ? String.format("%d:%02d", mTime.hour, mTime.minute)
-                    : String.format("%d:%02d:%02d", mTime.hour, mTime.minute, mTime.second);
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+
+            String timeGeneral = String.format("%d:%02d", mTime.hour, mTime.minute);
+            canvas.drawText(timeGeneral, mXOffset, mYOffset, mTextPaint);
+
+            if (!isInAmbientMode()){
+                String timeSeconds = String.format(":%02d",  mTime.second);
+                canvas.drawText(timeSeconds, mXOffsetSeconds, mYOffsetSeconds, mTextPaintSeconds);
+            }
         }
 
         /**
