@@ -24,12 +24,20 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.IntDef;
+import android.support.annotation.NonNull;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
 import android.text.format.Time;
 import android.util.Log;
 
 import com.bumptech.glide.Glide;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 import pe.asomapps.udacity.goubiquitous.BuildConfig;
 import pe.asomapps.udacity.goubiquitous.MainActivity;
@@ -59,7 +67,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             "com.example.android.sunshine.app.ACTION_DATA_UPDATED";
     // Interval at which to sync with the weather, in seconds.
     // 60 seconds (1 minute) * 180 = 3 hours
-    public static final int SYNC_INTERVAL = 60 * 180;
+    public static final int SYNC_INTERVAL = 10 * 1;
     public static final int SYNC_FLEXTIME = SYNC_INTERVAL/3;
     private static final long DAY_IN_MILLIS = 1000 * 60 * 60 * 24;
     private static final int WEATHER_NOTIFICATION_ID = 3004;
@@ -88,8 +96,12 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int LOCATION_STATUS_UNKNOWN = 3;
     public static final int LOCATION_STATUS_INVALID = 4;
 
+    private GoogleApiClient googleClient;
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+
+        googleClient = new GoogleApiClient.Builder(getContext()).addApi(Wearable.API).build();
+        googleClient.connect();
     }
 
     @Override
@@ -370,6 +382,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 updateWidgets();
                 updateMuzei();
                 notifyWeather();
+                notifyWearables();
             }
             Log.d(LOG_TAG, "Sync Complete. " + cVVector.size() + " Inserted");
             setLocationStatus(getContext(), LOCATION_STATUS_OK);
@@ -379,6 +392,32 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             e.printStackTrace();
             setLocationStatus(getContext(), LOCATION_STATUS_SERVER_INVALID);
         }
+    }
+
+    private void notifyWearables() {
+        Log.d("PUTDATA", "Start sending data");
+        String locationQuery = Utility.getPreferredLocation(getContext());
+        Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
+        Cursor cursor = getContext().getContentResolver().query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
+        if (cursor==null || !cursor.moveToFirst()){
+            return;
+        }
+        PutDataMapRequest dataMapRequest = PutDataMapRequest.create("/sunshine_weather");
+        dataMapRequest.getDataMap().putString("maxTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MAX_TEMP)));
+        dataMapRequest.getDataMap().putString("minTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MIN_TEMP)));
+        dataMapRequest.getDataMap().putInt("weatherId",cursor.getInt(INDEX_WEATHER_ID));
+
+        PutDataRequest request = dataMapRequest.asPutDataRequest();
+        Wearable.DataApi.putDataItem(googleClient,request).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+            @Override
+            public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+                if (dataItemResult.getStatus().isSuccess()){
+                    Log.d("PUTDATA", "SUCCESS - data sent");
+                } else {
+                    Log.d("PUTDATA", "FAILURE - data not sent");
+                }
+            }
+        });
     }
 
     private void updateWidgets() {

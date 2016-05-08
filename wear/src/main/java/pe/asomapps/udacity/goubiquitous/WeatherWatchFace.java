@@ -46,7 +46,10 @@ import android.view.WindowInsets;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
 import java.lang.ref.WeakReference;
@@ -209,11 +212,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background, getTheme()));
 
-            mWeatherIconBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
-            int size = Double.valueOf(WeatherWatchFace.this.getResources().getDimension(R.dimen.weather_icon_size)).intValue();
-            mWeatherIconBitmap = Bitmap.createScaledBitmap(mWeatherIconBitmap, size, size, false);
-            initGrayBackgroundBitmap();
-
             defaultOffset = resources.getDimension(R.dimen.default_margin_top);
             int whiteColor = resources.getColor(R.color.digital_text, getTheme());
             int grayColor = resources.getColor(R.color.graydigital_text, getTheme());
@@ -265,7 +263,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         private void paintDateTime(Canvas canvas, Rect bounds) {
             float centerX = bounds.centerX();
 
-            String timeGeneral = String.format("%d:%02d", mTime.hour, mTime.minute);
+            String timeGeneral = String.format("%02d:%02d", mTime.hour, mTime.minute);
 
             float timeXOffset = mTimePaint.measureText(timeGeneral) / 2;
             canvas.drawText(timeGeneral, centerX - timeXOffset, mTimeYOffset, mTimePaint);
@@ -275,7 +273,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 canvas.drawText(timeSeconds, centerX + timeXOffset, mTimeYOffset, mSecondsPaint);
             }
 
-            String date = String.format("%s, %s %02d %04d", mDayNames[mTime.weekDay].toUpperCase(), mMonthNames[mTime.month].toUpperCase(), mTime.monthDay, mTime.year);
+            String date = String.format("%s, %s %02d %04d", mDayNames[mTime.weekDay+1].toUpperCase(), mMonthNames[mTime.month].toUpperCase(), mTime.monthDay, mTime.year);
             float dateXOffset = mDatePaint.measureText(date) / 2;
             canvas.drawText(date, centerX - dateXOffset, mDateYOffset, mDatePaint);
         }
@@ -283,21 +281,26 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         private void paintWeather(Canvas canvas, Rect bounds) {
             float centerX = bounds.centerX();
 
-            String maxTemp = "25";
-            float maxXOffset = mTimePaint.measureText(maxTemp) / 2;
-            canvas.drawText(maxTemp, centerX - maxXOffset, mWeatherYOffset, mMaxPaint);
+            float maxXOffset = 0;
+            if (lastMaxTemp!=null){
+                maxXOffset = mTimePaint.measureText(lastMaxTemp) / 2;
+                canvas.drawText(lastMaxTemp, centerX - maxXOffset, mWeatherYOffset, mMaxPaint);
+            }
 
-            String minTemp = "16";
-            canvas.drawText(minTemp, centerX + maxXOffset + defaultOffset, mWeatherYOffset, mMinPaint);
+            if (lastMinTemp!=null) {
+                canvas.drawText(lastMinTemp, centerX + maxXOffset + defaultOffset, mWeatherYOffset, mMinPaint);
+            }
 
-            float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconBitmap.getWidth());
-            float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconBitmap.getHeight())/2;
             if (!isInAmbientMode()) {
                 if (mWeatherIconBitmap!=null){
+                    float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconBitmap.getWidth());
+                    float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconBitmap.getHeight())/2;
                     canvas.drawBitmap(mWeatherIconBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
                 }
             } else {
                 if (mWeatherIconGrayBitmap!=null) {
+                    float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconGrayBitmap.getWidth());
+                    float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconGrayBitmap.getHeight())/2;
                     canvas.drawBitmap(mWeatherIconGrayBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
                 }
             }
@@ -398,7 +401,26 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onDataChanged(DataEventBuffer dataEventBuffer) {
+            for (DataEvent event:dataEventBuffer){
+                if (event.getType()==DataEvent.TYPE_CHANGED){
+                    DataMap dataMap = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                    String path = event.getDataItem().getUri().getPath();
+                    if (path.equals("/sunshine_weather")){
+                        lastMaxTemp = dataMap.getString("maxTemp");
+                        lastMinTemp = dataMap.getString("minTemp");
+                        int weatherId = dataMap.getInt("weatherId");
 
+                        int resId = Utility.getArtResourceForWeatherCondition(weatherId);
+                        if (resId>=0){
+                            mWeatherIconBitmap = BitmapFactory.decodeResource(getResources(), resId);
+                            int size = Double.valueOf(WeatherWatchFace.this.getResources().getDimension(R.dimen.weather_icon_size)).intValue();
+                            mWeatherIconBitmap = Bitmap.createScaledBitmap(mWeatherIconBitmap, size, size, false);
+                            initGrayBackgroundBitmap();
+                        }
+                        invalidate();
+                    }
+                }
+            }
         }
 
         @Override
@@ -406,6 +428,8 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         }
 
+        private String lastMaxTemp;
+        private String lastMinTemp;
         private Bitmap mWeatherIconBitmap;
         private Bitmap mWeatherIconGrayBitmap;
 
