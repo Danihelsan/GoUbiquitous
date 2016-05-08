@@ -227,7 +227,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
             float textSizeTime = resources.getDimension(R.dimen.text_size_time);
             mTimePaint = createTextPaint(whiteColor, textSizeTime);
-            mTimeYOffset = resources.getDimension(R.dimen.time_margin_top) + textSizeTime;
+
+            int marginTop = isRound? R.dimen.time_margin_top_round: R.dimen.time_margin_top;
+            mTimeYOffset = resources.getDimension(marginTop) + textSizeTime;
 
             float textSizeSeconds = resources.getDimension(R.dimen.text_size_seconds);
             mSecondsPaint = createTextPaint(grayColor, textSizeSeconds);
