@@ -113,8 +113,13 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         private float mTimeYOffset = -1, mDateYOffset, mSeparatorYOffset, mWeatherYOffset;
         private float defaultOffset;
 
-        private Paint mBackgroundPaint, mTimePaint, mSecondsPaint, mDatePaint, mMaxPaint, mMinPaint, mWeatherIconPaint;
+        private Paint mBackgroundPaint, mTimePaint, mSecondsPaint, mDatePaint, mMaxPaint, mMinPaint;
         private GoogleApiClient googleClient;
+
+        private String lastMaxTemp;
+        private String lastMinTemp;
+        private Bitmap mWeatherIconBitmap;
+        private Bitmap mWeatherIconGrayBitmap;
 
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
@@ -201,6 +206,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         }
 
+        /**
+         * Create the tools and values to be used to
+         * locate and draw the information in the watch face
+         */
         @TargetApi(Build.VERSION_CODES.M)
         private void initValues() {
             if (mTimeYOffset >= 0) {
@@ -245,6 +254,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             return paint;
         }
 
+        /**
+         * Draw background from the watch face.
+         * This can be updated to draw an image or animation if needed later on
+         */
         private void paintBackground(Canvas canvas, Rect bounds) {
             if (isInAmbientMode()) {
                 canvas.drawColor(Color.BLACK);
@@ -253,6 +266,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             }
         }
 
+        /**
+         * Draw additional content that is not part of the information displayed
+         */
         private void paintExtras(Canvas canvas, Rect bounds) {
             canvas.drawRect(bounds.centerX() - defaultOffset,
                     mSeparatorYOffset, bounds.centerX() + defaultOffset,
@@ -260,6 +276,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                     mSecondsPaint);
         }
 
+        /**
+         * Draw the information from the date and time into the watch face
+         */
         private void paintDateTime(Canvas canvas, Rect bounds) {
             float centerX = bounds.centerX();
 
@@ -278,6 +297,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             canvas.drawText(date, centerX - dateXOffset, mDateYOffset, mDatePaint);
         }
 
+        /**
+         * Draw the information from the weather into the watch face
+         */
         private void paintWeather(Canvas canvas, Rect bounds) {
             float centerX = bounds.centerX();
 
@@ -295,13 +317,13 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 if (mWeatherIconBitmap!=null){
                     float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconBitmap.getWidth());
                     float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconBitmap.getHeight())/2;
-                    canvas.drawBitmap(mWeatherIconBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
+                    canvas.drawBitmap(mWeatherIconBitmap, iconXOffset, iconYOffset, null);
                 }
             } else {
                 if (mWeatherIconGrayBitmap!=null) {
                     float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconGrayBitmap.getWidth());
                     float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconGrayBitmap.getHeight())/2;
-                    canvas.drawBitmap(mWeatherIconGrayBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
+                    canvas.drawBitmap(mWeatherIconGrayBitmap, iconXOffset, iconYOffset, null);
                 }
             }
         }
@@ -428,11 +450,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         }
 
-        private String lastMaxTemp;
-        private String lastMinTemp;
-        private Bitmap mWeatherIconBitmap;
-        private Bitmap mWeatherIconGrayBitmap;
-
+        /**
+         * Generate gray bitmap from the current weather icon
+         */
         private void initGrayBackgroundBitmap() {
             mWeatherIconGrayBitmap = Bitmap.createBitmap(
                     mWeatherIconBitmap.getWidth(),

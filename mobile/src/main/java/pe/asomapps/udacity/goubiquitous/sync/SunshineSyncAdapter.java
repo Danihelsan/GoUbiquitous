@@ -394,6 +394,10 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
+    /**
+     * Notifies any synced wearable that there might be new data
+     * from the current weather that needs to be handled.
+     */
     private void notifyWearables() {
         Log.d("PUTDATA", "Start sending data");
         String locationQuery = Utility.getPreferredLocation(getContext());
