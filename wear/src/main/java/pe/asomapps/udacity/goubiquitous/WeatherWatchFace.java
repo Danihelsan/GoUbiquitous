@@ -22,8 +22,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
@@ -47,7 +51,6 @@ import com.google.android.gms.wearable.Wearable;
 
 import java.lang.ref.WeakReference;
 import java.text.DateFormatSymbols;
-import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -97,13 +100,18 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
     private class Engine extends CanvasWatchFaceService.Engine implements GoogleApiClient.ConnectionCallbacks,
             GoogleApiClient.OnConnectionFailedListener,
-            DataApi.DataListener  {
+            DataApi.DataListener {
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         boolean isRound, mAmbient;
         Time mTime;
         private String[] mDayNames, mMonthNames;
 
+        private float mTimeYOffset = -1, mDateYOffset, mSeparatorYOffset, mWeatherYOffset;
+        private float defaultOffset;
+
+        private Paint mBackgroundPaint, mTimePaint, mSecondsPaint, mDatePaint, mMaxPaint, mMinPaint, mWeatherIconPaint;
+        private GoogleApiClient googleClient;
 
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
@@ -112,6 +120,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mTime.setToNow();
             }
         };
+
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -155,12 +164,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
         }
 
-
-        float mTimeYOffset =- 1, mDateYOffset, mSeparatorYOffset, mWeatherYOffset;
-        float defaultOffset;
-
-        Paint mBackgroundPaint, mTimePaint, mSecondsPaint, mDatePaint, mMaxPaint, mMinPaint;
-
         @Override
         public void onTimeTick() {
             super.onTimeTick();
@@ -187,7 +190,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         public void onDraw(Canvas canvas, Rect bounds) {
             mTime.setToNow();
             initValues();
-            paintBackground(canvas,bounds);
+            paintBackground(canvas, bounds);
             paintDateTime(canvas, bounds);
             paintWeather(canvas, bounds);
 
@@ -197,22 +200,23 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         @TargetApi(Build.VERSION_CODES.M)
         private void initValues() {
-            if (mTimeYOffset>=0){
+            if (mTimeYOffset >= 0) {
                 return;
             }
 
             Resources resources = WeatherWatchFace.this.getResources();
 
             mBackgroundPaint = new Paint();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background, getTheme()));
-            } else {
-                mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background));
-            }
+            mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_background, getTheme()));
+
+            mWeatherIconBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
+            int size = Double.valueOf(WeatherWatchFace.this.getResources().getDimension(R.dimen.weather_icon_size)).intValue();
+            mWeatherIconBitmap = Bitmap.createScaledBitmap(mWeatherIconBitmap, size, size, false);
+            initGrayBackgroundBitmap();
 
             defaultOffset = resources.getDimension(R.dimen.default_margin_top);
-            int whiteColor = resources.getColor(R.color.digital_text,getTheme());
-            int grayColor = resources.getColor(R.color.graydigital_text,getTheme());
+            int whiteColor = resources.getColor(R.color.digital_text, getTheme());
+            int grayColor = resources.getColor(R.color.graydigital_text, getTheme());
 
             float textSizeTime = resources.getDimension(R.dimen.text_size_time);
             mTimePaint = createTextPaint(whiteColor, textSizeTime);
@@ -250,10 +254,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             }
         }
-        
+
         private void paintExtras(Canvas canvas, Rect bounds) {
             canvas.drawRect(bounds.centerX() - defaultOffset,
-                    mSeparatorYOffset, bounds.centerX() +  defaultOffset,
+                    mSeparatorYOffset, bounds.centerX() + defaultOffset,
                     mSeparatorYOffset + 1,
                     mSecondsPaint);
         }
@@ -266,18 +270,37 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             float timeXOffset = mTimePaint.measureText(timeGeneral) / 2;
             canvas.drawText(timeGeneral, centerX - timeXOffset, mTimeYOffset, mTimePaint);
 
-            if (!isInAmbientMode()){
-                String timeSeconds = String.format(":%02d",  mTime.second);
+            if (!isInAmbientMode()) {
+                String timeSeconds = String.format(":%02d", mTime.second);
                 canvas.drawText(timeSeconds, centerX + timeXOffset, mTimeYOffset, mSecondsPaint);
             }
 
-            String date = String.format("%s, %s %02d %04d",mDayNames[mTime.weekDay].toUpperCase(),mMonthNames[mTime.month].toUpperCase(),mTime.monthDay,mTime.year);
+            String date = String.format("%s, %s %02d %04d", mDayNames[mTime.weekDay].toUpperCase(), mMonthNames[mTime.month].toUpperCase(), mTime.monthDay, mTime.year);
             float dateXOffset = mDatePaint.measureText(date) / 2;
             canvas.drawText(date, centerX - dateXOffset, mDateYOffset, mDatePaint);
         }
 
         private void paintWeather(Canvas canvas, Rect bounds) {
+            float centerX = bounds.centerX();
 
+            String maxTemp = "25";
+            float maxXOffset = mTimePaint.measureText(maxTemp) / 2;
+            canvas.drawText(maxTemp, centerX - maxXOffset, mWeatherYOffset, mMaxPaint);
+
+            String minTemp = "16";
+            canvas.drawText(minTemp, centerX + maxXOffset + defaultOffset, mWeatherYOffset, mMinPaint);
+
+            float iconXOffset = centerX - (defaultOffset + maxXOffset + mWeatherIconBitmap.getWidth());
+            float iconYOffset = mWeatherYOffset - (defaultOffset+ mWeatherIconBitmap.getHeight())/2;
+            if (!isInAmbientMode()) {
+                if (mWeatherIconBitmap!=null){
+                    canvas.drawBitmap(mWeatherIconBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
+                }
+            } else {
+                if (mWeatherIconGrayBitmap!=null) {
+                    canvas.drawBitmap(mWeatherIconGrayBitmap, iconXOffset, iconYOffset, mWeatherIconPaint);
+                }
+            }
         }
 
         /**
@@ -311,7 +334,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
             }
         }
-        private GoogleApiClient googleClient;
 
         @Override
         public void onVisibilityChanged(boolean visible) {
@@ -382,6 +404,23 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         @Override
         public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
+        }
+
+        private Bitmap mWeatherIconBitmap;
+        private Bitmap mWeatherIconGrayBitmap;
+
+        private void initGrayBackgroundBitmap() {
+            mWeatherIconGrayBitmap = Bitmap.createBitmap(
+                    mWeatherIconBitmap.getWidth(),
+                    mWeatherIconBitmap.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(mWeatherIconGrayBitmap);
+            Paint grayPaint = new Paint();
+            ColorMatrix colorMatrix = new ColorMatrix();
+            colorMatrix.setSaturation(0);
+            ColorMatrixColorFilter filter = new ColorMatrixColorFilter(colorMatrix);
+            grayPaint.setColorFilter(filter);
+            canvas.drawBitmap(mWeatherIconBitmap, 0, 0, grayPaint);
         }
     }
 }

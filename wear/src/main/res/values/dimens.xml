@@ -18,6 +18,7 @@
     <dimen name="text_size_time">35dp</dimen>
     <dimen name="text_size_seconds">16dp</dimen>
     <dimen name="text_size_date">20dp</dimen>
-    <dimen name="text_size_weather">45dp</dimen>
+    <dimen name="text_size_weather">25dp</dimen>
 
+    <dimen name="weather_icon_size">45dp</dimen>
 </resources>
