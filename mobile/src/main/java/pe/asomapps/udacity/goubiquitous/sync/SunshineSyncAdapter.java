@@ -58,6 +58,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Random;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
@@ -66,8 +67,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final String ACTION_DATA_UPDATED =
             "com.example.android.sunshine.app.ACTION_DATA_UPDATED";
     // Interval at which to sync with the weather, in seconds.
-    // 60 seconds (1 minute) * 180 = 3 hours
-    public static final int SYNC_INTERVAL = 10 * 1;
+    // 60 seconds (1 minute) * 60 = 1 hour
+    public static final int SYNC_INTERVAL = BuildConfig.DEBUG ? 10 : 60 * 60;
     public static final int SYNC_FLEXTIME = SYNC_INTERVAL/3;
     private static final long DAY_IN_MILLIS = 1000 * 60 * 60 * 24;
     private static final int WEATHER_NOTIFICATION_ID = 3004;
@@ -394,6 +395,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
+    int debugCount = 0;
     /**
      * Notifies any synced wearable that there might be new data
      * from the current weather that needs to be handled.
@@ -406,10 +408,15 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         if (cursor==null || !cursor.moveToFirst()){
             return;
         }
+
+        //test purposes
+        debugCount = debugCount + ((BuildConfig.DEBUG)? 1:0);
+        int weatherId = (BuildConfig.DEBUG)? new Random().nextInt(5) + 800 : cursor.getInt(INDEX_WEATHER_ID);
         PutDataMapRequest dataMapRequest = PutDataMapRequest.create("/sunshine_weather");
-        dataMapRequest.getDataMap().putString("maxTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MAX_TEMP)));
-        dataMapRequest.getDataMap().putString("minTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MIN_TEMP)));
-        dataMapRequest.getDataMap().putInt("weatherId",cursor.getInt(INDEX_WEATHER_ID));
+        dataMapRequest.getDataMap().putString("maxTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MAX_TEMP)+debugCount));
+        dataMapRequest.getDataMap().putString("minTemp",Utility.formatTemperature(getContext(),cursor.getDouble(INDEX_MIN_TEMP)+debugCount));
+        dataMapRequest.getDataMap().putInt("weatherId",weatherId);
+
 
         PutDataRequest request = dataMapRequest.asPutDataRequest();
         Wearable.DataApi.putDataItem(googleClient,request).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
